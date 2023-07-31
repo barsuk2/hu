@@ -15,11 +15,12 @@ app = Flask(__name__)
 @app.route('/list_reference', methods=('GET', 'POST'))
 def get_reference() -> Response:
     """
-    Разделяет многостраничный pdf файл на отдельные файлы и упаковывает их в zip
+    Разделяет многостраничный pdf файл на отдельные файлы ,упаковывает их в zip и отправляет по HTTP
     :return: zip
     """
     save_files = False
     write_zip = False
+
     file = request.files.get('image')
     if file.mimetype != 'application/pdf':
         return abort(404, 'формат файла не pdf')
@@ -28,7 +29,9 @@ def get_reference() -> Response:
     zip_name = f'{os.path.splitext(file.filename)[0]}.zip'
     zip_buffer = io.BytesIO()
     start = datetime.datetime.now()
-    for i in range(len(reader.pages)):
+    how_match = 7
+    how_match = how_match if how_match is not None else len(reader.pages)
+    for i in range(how_match):
         buff = io.BytesIO()
 
         page = reader.pages[i]
@@ -37,13 +40,16 @@ def get_reference() -> Response:
         writer.write(buff)
 
         buff.seek(0)
-        image = convert_from_bytes(buff.getvalue())[0]
-        text = pytesseract.image_to_string(image, lang='rus')
+        pdf_to_image = convert_from_bytes(buff.getvalue())[0]
+        text_from_image = pytesseract.image_to_string(pdf_to_image, lang='rus')
         # match = re.search('(?P<name>[А-ЯЁ][а-яё]+)\s(?P<lastname>[А-ЯЁ][а-яё]+)\s(?P<fatherland>[А-ЯЁ][а-яё]+)\s\((?P<birthdate>\d{2}.\d{2}.\d{4}).+\)',text)
         pattern = "Настоящим подтверждаем, что\n+(?P<fio>.+)"
-        match = re.search(pattern, text)
-        file_name = match.group('fio').strip().split(' ')
-        file_name = '_'.join([name for name in file_name if not re.search('[\(,.\)]', name)])
+        match = re.search(pattern, text_from_image)
+        if match:
+            file_name = match.group('fio').strip().split(' ')
+            file_name = '_'.join([name for name in file_name if not re.search('[\(,.\)]', name)])
+        else:
+            file_name = 'Неопознан'
         if save_files:
             # сохраняем файлы на диск
             with open(f'/home/egor/PDF/result/{file_name}.pdf', 'wb') as f:
@@ -52,9 +58,9 @@ def get_reference() -> Response:
 
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
             zip_file.writestr(f'{file_name}.pdf', buff.getvalue())
-    if write_zip:
-        with open(f'/home/egor/PDF/result/{zip_name}', 'wb') as f:
-            f.write(zip_buffer.getvalue())
+        if write_zip:
+            with open(f'/home/egor/PDF/result/{zip_name}', 'wb') as f:
+                f.write(zip_buffer.getvalue())
 
     # return send_file(buff, mimetype='application/zip', as_attachment=True, download_name="1.pdf")
     # return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name="1.zip")
@@ -66,4 +72,4 @@ def get_reference() -> Response:
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5050)
