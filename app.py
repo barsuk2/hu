@@ -12,6 +12,11 @@ from flask import Flask, make_response, send_file, request, abort, Response
 app = Flask(__name__)
 
 
+@app.route('/list')
+def index():
+    return 'LIST'
+
+
 @app.route('/list_reference', methods=('GET', 'POST'))
 def get_reference() -> Response:
     """
@@ -29,11 +34,10 @@ def get_reference() -> Response:
     zip_name = f'{os.path.splitext(file.filename)[0]}.zip'
     zip_buffer = io.BytesIO()
     start = datetime.datetime.now()
-    how_match = 7
+    how_match = 5
     how_match = how_match if how_match is not None else len(reader.pages)
     for i in range(how_match):
         buff = io.BytesIO()
-
         page = reader.pages[i]
         writer = PdfWriter()
         writer.add_page(page)
