@@ -4,27 +4,55 @@ import re
 import zipfile
 import datetime
 import pytesseract
+import psycopg2
+import json
 
 from pdf2image import convert_from_bytes, convert_from_path
 from pypdf import PdfReader, PdfWriter
 from flask import Flask, make_response, send_file, request, abort, Response
+from models import *
+
 
 app = Flask(__name__)
-
+# conn = psycopg2.connect()
+conn = psycopg2.connect('postgresql://mp_owner:mp_owner@localhost:5432/mp_base')
+@app.get('/')
+def insex():
+    return '<h1>Title page for project</h1>'
 
 @app.route('/list')
 def index():
-    return 'LIST'
+    # with psycopg2.connect(DSN) as conn:
+    #     with conn.cursor() as curs:
+    #         curs.execute("SELECT id ,name, surname, birthday, grade FROM students where id=1")
+    #         all_users = curs.fetchone()
+    # print(all_users)
+    with conn:
+        with conn.cursor() as curs:
+            curs.execute("SELECT id ,name, surname, birthday, grade FROM students where id=1")
+            all_users = curs.fetchone()
+    student = Student(*all_users)
+    student.parent_email = 'ickzn@ya.ru'
+    student.grade = 20
+    student.parent_passport_certifying_organization = 'some organization'
+    # student = Student(id_=id ,name=name, surname=surname, birthday=birthday, grade=grade)
+    resp = student.resp_json()
+    with conn:
+        with conn.cursor() as curs:
+            curs.execute(f"UPDATE students set parent_email='ickzn@ya.ru' where id=1")
+    conn.commit()
+    conn.close()
+    return student.resp_json()
 
 
 @app.route('/list_reference', methods=('GET', 'POST'))
 def get_reference() -> Response:
     """
-    Разделяет многостраничный pdf файл на отдельные файлы ,упаковывает их в zip и отправляет по HTTP
+    Разделяет многостраничный pdf файл на отдельные файлы, упаковывает их в zip и отправляет по HTTP
     :return: zip
     """
-    save_files = False
     write_zip = False
+    save_files = False
 
     file = request.files.get('image')
     if file.mimetype != 'application/pdf':
